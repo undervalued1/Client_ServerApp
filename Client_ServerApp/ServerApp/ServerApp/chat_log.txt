@@ -1,0 +1,59 @@
+[SERVER]: user "Petr" has joined
+[Petr]: /users
+[Petr]: /user
+[SERVER]: user "Petr" has joined
+
+[SERVER]: user "Petr" has joined
+
+[Petr]: /users
+[Petr]: /users
+[Petr]: /users
+[Petr]: /users
+[SERVER]: user "Sanya" has joined
+
+[SERVER]: user "Sanya" has joined
+
+[Petr]: /users
+[Petr]: /users
+[Petr]: как дела
+[Petr]: как дела
+[Sanya]: норм  все
+[Sanya]: норм  все
+[SERVER]: user "Petr" left the chat
+
+[SERVER]: user "Petr" left the chat
+
+[SERVER]: user "Sanya" left the chat
+
+[SERVER]: user "Sanya" left the chat
+
+[SERVER]: user "petr" has joined
+
+[SERVER]: user "alex" has joined
+
+[alex]: hi
+
+[petr]: hi
+
+[petr]: /exit
+
+[SERVER]: user "petr" left the chat
+
+[SERVER]: user "rina" has joined
+
+[rina]: dfdf
+
+[SERVER]: user "rina" left the chat
+
+[SERVER]: user "alex" left the chat
+
+[SERVER]: user "petr" has joined
+[SERVER]: user "alex" has joined
+[petr]: привет! Как ты?
+[alex]: Привет! Живой вроде
+[alex]: Сам как?
+[petr]: Также
+[petr]: /exit
+[SERVER]: user "petr" left the chat
+[alex]: /exit
+[SERVER]: user "alex" left the chat
