@@ -16,17 +16,16 @@
 
 void receiveMessages(SOCKET ConnectSocket) {
     char recvbuf[DEFAULT_BUFLEN];
-    int recvbuflen = DEFAULT_BUFLEN;
     int iResult;
 
     while (true) {
-        iResult = recv(ConnectSocket, recvbuf, recvbuflen, 0);
+        iResult = recv(ConnectSocket, recvbuf, DEFAULT_BUFLEN, 0);
         if (iResult > 0) {
             recvbuf[iResult] = '\0';
-            std::cout << recvbuf << std::endl;
+            std::cout << recvbuf;
         }
         else {
-            std::cout << "Connection closed by server." << std::endl;
+            std::cout << "Соединение закрыто сервером.\n";
             break;
         }
     }
@@ -36,40 +35,28 @@ void receiveMessages(SOCKET ConnectSocket) {
 }
 
 int main() {
+    setlocale(LC_ALL, "RU");
     WSADATA wsaData;
     SOCKET ConnectSocket = INVALID_SOCKET;
     struct addrinfo* result = NULL, * ptr = NULL, hints;
 
-    int iResult;
-
-    iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (iResult != 0) {
-        std::cerr << "WSAStartup failed: " << iResult << std::endl;
-        return 1;
-    }
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
 
     ZeroMemory(&hints, sizeof(hints));
     hints.ai_family = AF_INET;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
 
-    iResult = getaddrinfo("127.0.0.1", DEFAULT_PORT, &hints, &result);
-    if (iResult != 0) {
-        std::cerr << "getaddrinfo failed: " << iResult << std::endl;
-        WSACleanup();
-        return 1;
-    }
+    getaddrinfo("192.168.0.150", DEFAULT_PORT, &hints, &result);
 
     for (ptr = result; ptr != NULL; ptr = ptr->ai_next) {
         ConnectSocket = socket(ptr->ai_family, ptr->ai_socktype, ptr->ai_protocol);
         if (ConnectSocket == INVALID_SOCKET) {
-            std::cerr << "Socket creation failed." << std::endl;
             WSACleanup();
             return 1;
         }
 
-        iResult = connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen);
-        if (iResult == SOCKET_ERROR) {
+        if (connect(ConnectSocket, ptr->ai_addr, (int)ptr->ai_addrlen) == SOCKET_ERROR) {
             closesocket(ConnectSocket);
             ConnectSocket = INVALID_SOCKET;
             continue;
@@ -80,15 +67,29 @@ int main() {
     freeaddrinfo(result);
 
     if (ConnectSocket == INVALID_SOCKET) {
-        std::cerr << "Unable to connect to server." << std::endl;
+        std::cerr << "Unable to connect to server.\n";
         WSACleanup();
         return 1;
     }
 
-    std::cout << "Enter your name: ";
     std::string username;
-    std::getline(std::cin, username);
-    send(ConnectSocket, username.c_str(), username.length(), 0);
+    while (true) {
+        std::cout << "Введите имя: ";
+        std::getline(std::cin, username);
+        send(ConnectSocket, username.c_str(), username.length(), 0);
+
+        char response[DEFAULT_BUFLEN] = { 0 };
+        int respLength = recv(ConnectSocket, response, DEFAULT_BUFLEN, 0);
+
+        if (respLength > 0) {
+            std::string serverResponse(response, respLength);
+            std::cout << serverResponse;
+            if (serverResponse.find("[SERVER]: Имя уже занято или зарезервировано") != std::string::npos) {
+                continue;
+            }
+        }
+        break;
+    }
 
     std::thread recvThread(receiveMessages, ConnectSocket);
     recvThread.detach();

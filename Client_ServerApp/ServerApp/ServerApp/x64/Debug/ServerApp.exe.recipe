@@ -2,7 +2,7 @@
 <Project>
   <ProjectOutputs>
     <ProjectOutput>
-      <FullPath>D:\ЕКТС\Новая папка\ServerApp\x64\Debug\ServerApp.exe</FullPath>
+      <FullPath>D:\ЕКТС\Новая папка\Client_ServerApp\ServerApp\x64\Debug\ServerApp.exe</FullPath>
     </ProjectOutput>
   </ProjectOutputs>
   <ContentFiles />

@@ -1,0 +1,9 @@
+﻿  ClientApp.cpp
+D:\ЕКТС\Новая папка\Client_ServerApp\ClientApp\ClientApp\ClientApp.cpp(79,62): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+D:\ЕКТС\Новая папка\Client_ServerApp\ClientApp\ClientApp\ClientApp.cpp(101,64): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+D:\ЕКТС\Новая папка\Client_ServerApp\ClientApp\ClientApp\ClientApp.cpp(104,60): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+  Создание кода
+  Previous IPDB not found, fall back to full compilation.
+  All 292 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Создание кода завершено
+  ClientApp.vcxproj -> D:\ЕКТС\Новая папка\Client_ServerApp\ClientApp\x64\Release\ClientApp.exe

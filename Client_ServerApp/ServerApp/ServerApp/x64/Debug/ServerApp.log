@@ -1,2 +1,5 @@
 ﻿  ServerApp.cpp
-  ServerApp.vcxproj -> D:\ЕКТС\Новая папка\ServerApp\x64\Debug\ServerApp.exe
+D:\ЕКТС\Новая папка\Client_ServerApp\ServerApp\ServerApp\ServerApp.cpp(35,64): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+D:\ЕКТС\Новая папка\Client_ServerApp\ServerApp\ServerApp\ServerApp.cpp(149,73): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+D:\ЕКТС\Новая папка\Client_ServerApp\ServerApp\ServerApp\ServerApp.cpp(160,77): warning C4267: аргумент: преобразование из "size_t" в "int"; возможна потеря данных
+  ServerApp.vcxproj -> D:\ЕКТС\Новая папка\Client_ServerApp\ServerApp\x64\Debug\ServerApp.exe
