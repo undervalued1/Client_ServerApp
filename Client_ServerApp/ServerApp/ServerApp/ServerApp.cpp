@@ -1,116 +1,157 @@
-﻿#undef UNICODE
-
+﻿#define _CRT_SECURE_NO_WARNINGS
 #define WIN32_LEAN_AND_MEAN
+#define PORT "27015"
+#define BUFLEN 8192
 
-#include <windows.h>
-#include <winsock2.h>
-#include <ws2tcpip.h>
 #include <iostream>
+#include <Windows.h>
+#include <WinSock2.h>
+#include <WS2tcpip.h>
+#include <map>
 #include <string>
-#include <thread>
-#include <vector>
-#include <mutex>
-#include <conio.h>
+#include <stdio.h>
 
 #pragma comment(lib, "Ws2_32.lib")
 
-#define DEFAULT_BUFLEN 512
-#define DEFAULT_PORT "27015"
+using namespace std;
 
-// Структура для хранения клиента
-struct Client {
-    SOCKET socket;
-    std::string username;
-};
+WSADATA wsaData;
+SOCKET listeningSocket = INVALID_SOCKET;
+struct addrinfo* addressInfo = NULL, * ptr = NULL, hints;
 
-std::vector<Client> clients;
-std::mutex clientsMutex;
+map<int, string> activeClients;
+map<int, time_t> lastMessage;
+HANDLE mutexHandle;
 
-// Функция отправки сообщений всем клиентам
-void BroadcastMessage(const std::string& message, SOCKET sender) {
-    setlocale(LC_ALL, "RU");
-    std::lock_guard<std::mutex> lock(clientsMutex);
-    for (const Client& client : clients) {
-        if (client.socket != sender) {
-            send(client.socket, message.c_str(), message.length(), 0);
-        }
+void logMessage(const string& message) {
+    FILE* logFile = fopen("chat_log.txt", "a");
+    if (logFile) {
+        fprintf(logFile, "%s\n", message.c_str());
+        fclose(logFile);
+    }
+    else {
+        printf("Сервер: невозможно открыть файл\n");
     }
 }
 
-// Функция обработки клиента
-void HandleClient(SOCKET ClientSocket) {
-    setlocale(LC_ALL, "RU");
-    char recvbuf[DEFAULT_BUFLEN];
-    std::string username;
-
-    // Получаем имя клиента
-    {
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        for (const Client& client : clients) {
-            if (client.socket == ClientSocket) {
-                username = client.username;
-                break;
-            }
-        }
-    }
-
-    std::string welcomeMsg = "[SERVER] " + username + " подключился.";
-    BroadcastMessage(welcomeMsg + "\n", ClientSocket);
-    std::cout << welcomeMsg << std::endl;
-
-    int iResult;
-    while (true) {
-        iResult = recv(ClientSocket, recvbuf, DEFAULT_BUFLEN, 0);
-        if (iResult > 0) {
-            recvbuf[iResult] = '\0';
-            std::string message = username + ": " + recvbuf;
-
-            if (message.find("/exit") != std::string::npos) {
-                break;
-            }
-
-            BroadcastMessage(message + "\n", ClientSocket);
-            std::cout << message << std::endl;
-        }
-        else {
-            break;
-        }
-    }
-
-    // Удаляем клиента из списка
-    {
-        setlocale(LC_ALL, "RU");
-        std::lock_guard<std::mutex> lock(clientsMutex);
-        clients.erase(std::remove_if(clients.begin(), clients.end(),
-            [ClientSocket](const Client& client) { return client.socket == ClientSocket; }), clients.end());
-    }
-
-    std::string leaveMsg = "[SERVER] " + username + " вышел из чата.";
-    BroadcastMessage(leaveMsg + "\n", ClientSocket);
-    std::cout << leaveMsg << std::endl;
-
-    closesocket(ClientSocket);
+void logToConsoleAndFile(const string& message) {
+    printf("%s\n", message.c_str());
+    logMessage(message);
 }
 
-// Проверка уникальности имени
-bool isNameTaken(const std::string& username) {
-    setlocale(LC_ALL, "RU");
-    std::lock_guard<std::mutex> lock(clientsMutex);
-    if (username == "server" || username == "SERVER") return true;
-    for (const Client& client : clients) {
-        if (client.username == username) return true;
+bool isUsernameTaken(const string& username) {
+    for (const auto& client : activeClients) {
+        if (client.second == username) return true;
     }
     return false;
 }
 
-// Основная функция сервера
-int main() {
-    setlocale(LC_ALL, "RU");
-    WSADATA wsaData;
-    SOCKET ListenSocket = INVALID_SOCKET;
-    struct addrinfo* result = NULL, hints;
+void sendToAll(const string& message, int senderSocket = -1) {
+    WaitForSingleObject(mutexHandle, INFINITE);
+    for (const auto& client : activeClients) {
+        if (client.first != senderSocket) {
+            send(client.first, message.c_str(), message.size(), 0);
+        }
+    }
+    ReleaseMutex(mutexHandle);
+}
 
-    WSAStartup(MAKEWORD(2, 2), &wsaData);
+DWORD WINAPI ClientSession(LPVOID lpParam) {
+    SOCKET clientSocket = (SOCKET)lpParam;
+    char buffer[BUFLEN];
+    int bytesReceived;
+    string clientName;
+
+
+    while (true) {
+        const char* prompt = "Введи имя: ";
+        send(clientSocket, prompt, (int)strlen(prompt), 0);
+        logToConsoleAndFile("Сервер: Введи имя");
+
+        bytesReceived = recv(clientSocket, buffer, BUFLEN, 0);
+        if (bytesReceived <= 0) {
+            closesocket(clientSocket);
+            return 0;
+        }
+
+        clientName = string(buffer, bytesReceived);
+        clientName.erase(clientName.find_last_not_of(" \n\r") + 1);
+
+        logToConsoleAndFile("Пользователь: " + clientName);
+
+
+        WaitForSingleObject(mutexHandle, INFINITE);
+        if (!isUsernameTaken(clientName)) {
+            activeClients[clientSocket] = clientName;
+            ReleaseMutex(mutexHandle);
+            break;
+        }
+        ReleaseMutex(mutexHandle);
+
+        const char* takenMessage = "Это имя уже занято.";
+        send(clientSocket, takenMessage, (int)strlen(takenMessage), 0);
+        logToConsoleAndFile("Сервер: Пользователь с таким именем уже существует.");
+    }
+
+    string joinMessage = "Сервер: " + clientName + " вошел в чат.";
+    logToConsoleAndFile(joinMessage);
+    sendToAll(joinMessage, clientSocket);
+
+    while (true) {
+        bytesReceived = recv(clientSocket, buffer, BUFLEN, 0);
+        if (bytesReceived <= 0) break;
+
+        string message(buffer, bytesReceived);
+        message.erase(message.find_last_not_of(" \n\r") + 1);
+
+        if (!message.empty() && message[0] == '/') {
+            string commandLog = clientName + ": " + message;
+            logToConsoleAndFile(commandLog);
+
+            if (message == "/users") {
+                string userList = "Пользователи: ";
+                WaitForSingleObject(mutexHandle, INFINITE);
+                for (const auto& c : activeClients) userList += c.second + ", ";
+                ReleaseMutex(mutexHandle);
+                if (!activeClients.empty()) userList.erase(userList.end() - 2);
+
+                string response = "Сервер: " + userList;
+                logToConsoleAndFile(response);
+                send(clientSocket, userList.c_str(), userList.length(), 0);
+            }
+            else {
+                string unknownCommand = "Сервер: Неизвестная команда";
+                logToConsoleAndFile(unknownCommand);
+                send(clientSocket, "Неизвестная команда.\n", 18, 0);
+            }
+        }
+        else {
+            string msg = clientName + ": " + message;
+            logToConsoleAndFile(msg);
+            sendToAll(msg, clientSocket);
+        }
+    }
+
+    string leaveMessage = "Сервер: " + clientName + " покинул чат.";
+    sendToAll(leaveMessage, clientSocket);
+    logToConsoleAndFile(leaveMessage);
+    closesocket(clientSocket);
+
+
+    WaitForSingleObject(mutexHandle, INFINITE);
+    activeClients.erase(clientSocket);
+    ReleaseMutex(mutexHandle);
+
+    return 0;
+}
+
+int main() {
+    setlocale(0, "rus");
+
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        printf("Winsock initialization failed\n");
+        return 1;
+    }
 
     ZeroMemory(&hints, sizeof(hints));
     hints.ai_family = AF_INET;
@@ -118,60 +159,52 @@ int main() {
     hints.ai_protocol = IPPROTO_TCP;
     hints.ai_flags = AI_PASSIVE;
 
-    getaddrinfo("192.168.0.150", DEFAULT_PORT, &hints, &result);
-
-    ListenSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
-    bind(ListenSocket, result->ai_addr, (int)result->ai_addrlen);
-    freeaddrinfo(result);
-
-    listen(ListenSocket, SOMAXCONN);
-    std::cout << "[SERVER] Сервер запущен и ожидает клиентов...\n";
-
-    while (true) {
-        SOCKET ClientSocket = accept(ListenSocket, NULL, NULL);
-        if (ClientSocket == INVALID_SOCKET) continue;
-
-        char nameBuffer[DEFAULT_BUFLEN];
-        int nameLength;
-
-        // Цикл, чтобы клиент мог попытаться снова ввести имя, если оно занято
-        std::string username;
-        bool validName = false;
-        while (!validName) {
-            nameLength = recv(ClientSocket, nameBuffer, DEFAULT_BUFLEN, 0);
-
-            if (nameLength > 0) {
-                username = std::string(nameBuffer, nameLength);
-                username.erase(username.find_last_not_of("\r\n") + 1); // Убираем лишние символы
-
-                if (isNameTaken(username)) {
-                    std::string errorMsg = "[SERVER] Имя занято или зарезервировано.\n";
-                    send(ClientSocket, errorMsg.c_str(), errorMsg.length(), 0);
-                }
-                else {
-                    validName = true;
-                    // Добавляем клиента в список
-                    {
-                        std::lock_guard<std::mutex> lock(clientsMutex);
-                        clients.push_back({ ClientSocket, username });
-                    }
-
-                    std::string successMsg = "[SERVER] Добро пожаловать, " + username + "!\n";
-                    send(ClientSocket, successMsg.c_str(), successMsg.length(), 0);
-
-                    // Запускаем поток обработки клиента
-                    std::thread(HandleClient, ClientSocket).detach();
-                }
-            }
-            else {
-                closesocket(ClientSocket);
-                break;
-            }
-        }
+    if (getaddrinfo(NULL, PORT, &hints, &addressInfo) != 0) {
+        printf("Error resolving address\n");
+        WSACleanup();
+        return 2;
     }
 
-    closesocket(ListenSocket);
+    listeningSocket = socket(addressInfo->ai_family, addressInfo->ai_socktype, addressInfo->ai_protocol);
+    if (listeningSocket == INVALID_SOCKET) {
+        printf("Socket creation failed\n");
+        WSACleanup();
+        return 3;
+    }
+
+    if (bind(listeningSocket, addressInfo->ai_addr, (int)addressInfo->ai_addrlen) == SOCKET_ERROR) {
+        printf("Bind failed\n");
+        closesocket(listeningSocket);
+        WSACleanup();
+        return 4;
+    }
+
+    freeaddrinfo(addressInfo);
+
+    if (listen(listeningSocket, SOMAXCONN) == SOCKET_ERROR) {
+        printf("Listen failed\n");
+        closesocket(listeningSocket);
+        WSACleanup();
+        return 5;
+    }
+
+    mutexHandle = CreateMutex(NULL, FALSE, NULL);
+
+    printf("Порт сервера: %s...\n", PORT);
+
+    while (true) {
+        SOCKET clientSocket = accept(listeningSocket, NULL, NULL);
+        if (clientSocket == INVALID_SOCKET) {
+            printf("Accept failed: %d\n", WSAGetLastError());
+            continue;
+        }
+
+        HANDLE clientThread = CreateThread(NULL, 0, ClientSession, (LPVOID)clientSocket, 0, NULL);
+        if (clientThread) CloseHandle(clientThread);
+    }
+
+    closesocket(listeningSocket);
+    CloseHandle(mutexHandle);
     WSACleanup();
     return 0;
 }
-
